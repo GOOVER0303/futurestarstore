@@ -1,71 +1,72 @@
-﻿import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, varchar, text, integer, doublePrecision, boolean, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
-export const users = sqliteTable("users", {
-  id: text("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  createdAt: text("created_at").notNull(),
+export const users = pgTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  username: varchar("username", { length: 100 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  createdAt: varchar("created_at", { length: 30 }).notNull(),
 });
 
-export const categories = sqliteTable("categories", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
+export const categories = pgTable("categories", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
-export const products = sqliteTable("products", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
+export const products = pgTable("products", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
   description: text("description").notNull().default(""),
-  price: real("price").notNull(),
-  images: text("images", { mode: "json" }).$type<string[]>().notNull().default([]),
-  sizes: text("sizes", { mode: "json" }).$type<string[]>().notNull().default([]),
-  stock: text("stock", { mode: "json" }).$type<Record<string, number>>().notNull().default({}),
-  categoryId: text("category_id").references(() => categories.id),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
+  price: doublePrecision("price").notNull(),
+  images: jsonb("images").$type<string[]>().default(sql`'[]'::jsonb`),
+  sizes: jsonb("sizes").$type<string[]>().default(sql`'[]'::jsonb`),
+  stock: jsonb("stock").$type<Record<string, number>>().default(sql`'{}'::jsonb`),
+  categoryId: varchar("category_id", { length: 36 }).references(() => categories.id),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: varchar("created_at", { length: 30 }).notNull(),
+  updatedAt: varchar("updated_at", { length: 30 }).notNull(),
 });
 
-export const customFieldDefinitions = sqliteTable("custom_field_definitions", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  label: text("label").notNull(),
-  type: text("type").$type<"text" | "number" | "select" | "textarea" | "boolean">().notNull(),
-  options: text("options", { mode: "json" }).$type<string[]>().default([]),
-  required: integer("required", { mode: "boolean" }).notNull().default(false),
+export const customFieldDefinitions = pgTable("custom_field_definitions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  name: varchar("name", { length: 100 }).notNull().unique(),
+  label: varchar("label", { length: 100 }).notNull(),
+  type: varchar("type", { length: 20 }).$type<"text" | "number" | "select" | "textarea" | "boolean">().notNull(),
+  options: jsonb("options").$type<string[]>().default(sql`'[]'::jsonb`),
+  required: boolean("required").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
-export const productCustomValues = sqliteTable("product_custom_field_values", {
-  id: text("id").primaryKey(),
-  productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  fieldDefinitionId: text("field_definition_id").notNull().references(() => customFieldDefinitions.id, { onDelete: "cascade" }),
+export const productCustomValues = pgTable("product_custom_field_values", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  productId: varchar("product_id", { length: 36 }).notNull().references(() => products.id, { onDelete: "cascade" }),
+  fieldDefinitionId: varchar("field_definition_id", { length: 36 }).notNull().references(() => customFieldDefinitions.id, { onDelete: "cascade" }),
   value: text("value").notNull(),
 });
 
-export const orders = sqliteTable("orders", {
-  id: text("id").primaryKey(),
-  orderNum: text("order_num").notNull().unique(),
-  customerName: text("customer_name").notNull(),
-  customerPhone: text("customer_phone").notNull(),
+export const orders = pgTable("orders", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  orderNum: varchar("order_num", { length: 50 }).notNull().unique(),
+  customerName: varchar("customer_name", { length: 100 }).notNull(),
+  customerPhone: varchar("customer_phone", { length: 30 }).notNull(),
   customerAddress: text("customer_address").notNull(),
   customerNote: text("customer_note").notNull().default(""),
-  totalAmount: real("total_amount").notNull(),
-  paymentMethod: text("payment_method").$type<"online" | "offline">().notNull(),
-  paymentStatus: text("payment_status").$type<"pending" | "paid" | "failed">().notNull().default("pending"),
-  orderStatus: text("order_status").$type<"new" | "confirmed" | "shipped" | "completed" | "cancelled">().notNull().default("new"),
-  createdAt: text("created_at").notNull(),
+  totalAmount: doublePrecision("total_amount").notNull(),
+  paymentMethod: varchar("payment_method", { length: 20 }).$type<"online" | "offline">().notNull(),
+  paymentStatus: varchar("payment_status", { length: 20 }).$type<"pending" | "paid" | "failed">().notNull().default("pending"),
+  orderStatus: varchar("order_status", { length: 20 }).$type<"new" | "confirmed" | "shipped" | "completed" | "cancelled">().notNull().default("new"),
+  createdAt: varchar("created_at", { length: 30 }).notNull(),
 });
 
-export const orderItems = sqliteTable("order_items", {
-  id: text("id").primaryKey(),
-  orderId: text("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
-  productId: text("product_id").notNull(),
-  productTitle: text("product_title").notNull(),
+export const orderItems = pgTable("order_items", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  orderId: varchar("order_id", { length: 36 }).notNull().references(() => orders.id, { onDelete: "cascade" }),
+  productId: varchar("product_id", { length: 36 }).notNull(),
+  productTitle: varchar("product_title", { length: 200 }).notNull(),
   quantity: integer("quantity").notNull(),
-  size: text("size").notNull(),
-  unitPrice: real("unit_price").notNull(),
+  size: varchar("size", { length: 20 }).notNull(),
+  unitPrice: doublePrecision("unit_price").notNull(),
 });

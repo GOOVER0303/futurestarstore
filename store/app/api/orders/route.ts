@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, saveDb } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { genId, now, generateOrderNum } from "@/lib/utils";
 import { requireAuth } from "@/lib/api-auth";
 import { eq, desc } from "drizzle-orm";
@@ -11,15 +11,14 @@ export async function GET(req: NextRequest) {
   const page = parseInt(url.searchParams.get("page") || "1");
   const limit = parseInt(url.searchParams.get("limit") || "20");
 
-  const all = db.select().from(schema.orders).orderBy(desc(schema.orders.createdAt)).all();
+  const all = await db.select().from(schema.orders).orderBy(desc(schema.orders.createdAt));
   const total = all.length;
   const items = all.slice((page - 1) * limit, page * limit);
 
-  // Attach order items
-  const ordersWithItems = items.map((o) => {
-    const items = db.select().from(schema.orderItems).where(eq(schema.orderItems.orderId, o.id)).all();
-    return { ...o, items };
-  });
+  const ordersWithItems = await Promise.all(items.map(async (o) => {
+    const orderItems = await db.select().from(schema.orderItems).where(eq(schema.orderItems.orderId, o.id));
+    return { ...o, items: orderItems };
+  }));
 
   return NextResponse.json({ items: ordersWithItems, total, page, totalPages: Math.ceil(total / limit) });
 }
@@ -39,7 +38,8 @@ export async function POST(req: NextRequest) {
   const orderItemRecords: typeof schema.orderItems.$inferInsert[] = [];
 
   for (const item of items) {
-    const product = db.select().from(schema.products).where(eq(schema.products.id, item.productId)).get();
+    const rows = await db.select().from(schema.products).where(eq(schema.products.id, item.productId));
+    const product = rows[0];
     if (!product) {
       return NextResponse.json({ error: `商品 ${item.productId} 不存在` }, { status: 400 });
     }
@@ -56,25 +56,23 @@ export async function POST(req: NextRequest) {
       unitPrice,
     });
 
-    // Deduct stock
     if (item.size && product.stock && (product.stock as Record<string, number>)[item.size]) {
       const newStock = { ...(product.stock as Record<string, number>) };
       newStock[item.size] = Math.max(0, newStock[item.size] - item.quantity);
-      db.update(schema.products).set({ stock: newStock, updatedAt: now() }).where(eq(schema.products.id, product.id)).run();
+      await db.update(schema.products).set({ stock: newStock, updatedAt: now() }).where(eq(schema.products.id, product.id));
     }
   }
 
-  db.insert(schema.orders).values({
+  await db.insert(schema.orders).values({
     id, orderNum, customerName, customerPhone, customerAddress,
     customerNote: customerNote || "", totalAmount,
     paymentMethod: paymentMethod || "offline",
     paymentStatus: "pending", orderStatus: "new", createdAt: now(),
-  }).run();
+  });
 
   for (const oi of orderItemRecords) {
-    db.insert(schema.orderItems).values(oi).run();
+    await db.insert(schema.orderItems).values(oi);
   }
 
-  saveDb();
   return NextResponse.json({ id, orderNum, totalAmount }, { status: 201 });
 }

@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, saveDb } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { genId, now } from "@/lib/utils";
 import { requireAuth } from "@/lib/api-auth";
 import { eq, like, and, desc } from "drizzle-orm";
-
-function parseProduct(p: any) {
-  let sizes: string[] = [];
-  let stock: Record<string, number> = {};
-  let images: string[] = [];
-  try { sizes = JSON.parse(p.sizes); } catch { sizes = []; }
-  try { stock = JSON.parse(p.stock); } catch { stock = {}; }
-  try { images = JSON.parse(p.images); } catch { images = []; }
-  return { ...p, sizes, stock, images };
-}
 
 export async function GET(req: NextRequest) {
   const { db, schema } = await getDb();
@@ -28,21 +18,21 @@ export async function GET(req: NextRequest) {
   if (category) conditions.push(eq(schema.products.categoryId, category));
   if (search) conditions.push(like(schema.products.title, `%${search}%`));
 
-  const base = db.select().from(schema.products).where(and(...conditions));
-  const total = base.all().length;
-  const raw = base.orderBy(desc(schema.products.createdAt)).limit(limit).offset((page - 1) * limit).all();
+  const raw = await db.select().from(schema.products).where(and(...conditions)).orderBy(desc(schema.products.createdAt));
+  const total = raw.length;
+  const paged = raw.slice((page - 1) * limit, page * limit);
 
-  const items = raw.map((p) => {
-    const parsed = parseProduct(p);
-    const fieldValues = db.select().from(schema.productCustomValues).where(eq(schema.productCustomValues.productId, p.id)).all();
-    const fieldDefs = db.select().from(schema.customFieldDefinitions).where(eq(schema.customFieldDefinitions.isActive, true)).all();
+  const fieldDefs = await db.select().from(schema.customFieldDefinitions).where(eq(schema.customFieldDefinitions.isActive, true));
+
+  const items = await Promise.all(paged.map(async (p) => {
+    const fieldValues = await db.select().from(schema.productCustomValues).where(eq(schema.productCustomValues.productId, p.id));
     const customFields: Record<string, string> = {};
     for (const v of fieldValues) {
       const def = fieldDefs.find((f) => f.id === v.fieldDefinitionId);
       if (def) customFields[def.name] = v.value;
     }
-    return { ...parsed, customFields };
-  });
+    return { ...p, customFields };
+  }));
 
   return NextResponse.json({ items, total, page, totalPages: Math.ceil(total / limit) });
 }
@@ -60,25 +50,24 @@ export async function POST(req: NextRequest) {
   const id = genId();
   const ts = now();
 
-  db.insert(schema.products).values({
+  await db.insert(schema.products).values({
     id, title, description: description || "", price,
-    images: JSON.stringify(images || []),
-    sizes: JSON.stringify(sizes || []),
-    stock: JSON.stringify(stock || {}),
+    images: images || [],
+    sizes: sizes || [],
+    stock: stock || {},
     categoryId: categoryId || null, isActive: true,
     createdAt: ts, updatedAt: ts,
-  }).run();
+  });
 
   if (customFields && typeof customFields === "object") {
     for (const [fieldDefId, value] of Object.entries(customFields)) {
       if (value) {
-        db.insert(schema.productCustomValues).values({
+        await db.insert(schema.productCustomValues).values({
           id: genId(), productId: id, fieldDefinitionId: fieldDefId, value: String(value),
-        }).run();
+        });
       }
     }
   }
 
-  saveDb();
   return NextResponse.json({ id }, { status: 201 });
 }

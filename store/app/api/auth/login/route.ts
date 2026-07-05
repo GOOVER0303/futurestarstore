@@ -1,6 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getDb, saveDb } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { createToken, setAuthCookie } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
   }
 
   const { db, schema } = await getDb();
-  const user = db.select().from(schema.users).where(eq(schema.users.username, username)).get();
+  const rows = await db.select().from(schema.users).where(eq(schema.users.username, username));
+  const user = rows[0];
 
   if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
     return NextResponse.json({ error: "用户名或密码错误" }, { status: 401 });

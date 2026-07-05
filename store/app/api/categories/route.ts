@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, saveDb } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { genId } from "@/lib/utils";
 import { requireAuth } from "@/lib/api-auth";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
   const { db, schema } = await getDb();
-  const cats = db.select().from(schema.categories).orderBy(schema.categories.sortOrder).all();
+  const cats = await db.select().from(schema.categories).orderBy(schema.categories.sortOrder);
   return NextResponse.json(cats);
 }
 
@@ -16,8 +16,7 @@ export async function POST(req: NextRequest) {
   if (!name) return NextResponse.json({ error: "分类名必填" }, { status: 400 });
   const { db, schema } = await getDb();
   const id = genId();
-  db.insert(schema.categories).values({ id, name, slug: slug || name, sortOrder: 0 }).run();
-  saveDb();
+  await db.insert(schema.categories).values({ id, name, slug: slug || name, sortOrder: 0 });
   return NextResponse.json({ id, name, slug: slug || name });
 }
 
@@ -27,7 +26,6 @@ export async function DELETE(req: NextRequest) {
   const id = url.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "缺少分类ID" }, { status: 400 });
   const { db, schema } = await getDb();
-  db.delete(schema.categories).where(eq(schema.categories.id, id)).run();
-  saveDb();
+  await db.delete(schema.categories).where(eq(schema.categories.id, id));
   return NextResponse.json({ success: true });
 }
