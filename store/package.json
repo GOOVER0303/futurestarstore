@@ -6,8 +6,7 @@
                     "dev":  "next dev -p 3500",
                     "build":  "next build",
                     "start":  "next start -p 3500",
-                    "seed":  "tsx lib/seed.ts",
-                    "vercel-build":  "npm install \u0026\u0026 next build"
+                    "seed":  "tsx lib/seed.ts"
                 },
     "dependencies":  {
                          "@neondatabase/serverless":  "^0.10.0",
@@ -20,7 +19,8 @@
                          "react":  "^19.0.0",
                          "react-dom":  "^19.0.0",
                          "react-hot-toast":  "^2.5.0",
-                         "uuid":  "^11.1.0"
+                         "uuid":  "^11.1.0",
+                         "@vercel/blob":  "^0.27.0"
                      },
     "devDependencies":  {
                             "@types/bcryptjs":  "^2.4.6",

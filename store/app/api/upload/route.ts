@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
+import { put } from "@vercel/blob";
 import { v4 as uuidv4 } from "uuid";
-import * as fs from "fs";
-import * as path from "path";
 
 export async function POST(req: NextRequest) {
   if (!(await requireAuth())) return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -21,14 +20,14 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = file.name.split(".").pop() || "jpg";
-    const filename = `${uuidv4()}.${ext}`;
-    const uploadsDir = path.join(process.cwd(), "public", "uploads", "products");
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    const filename = `products/${uuidv4()}.${ext}`;
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(path.join(uploadsDir, filename), buffer);
+    const blob = await put(filename, file, {
+      access: "public",
+      addRandomSuffix: false,
+    });
 
-    return NextResponse.json({ url: `/uploads/products/${filename}`, filename });
+    return NextResponse.json({ url: blob.url, filename });
   } catch (e) {
     return NextResponse.json({ error: "上传失败" }, { status: 500 });
   }
